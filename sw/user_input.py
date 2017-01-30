@@ -7,32 +7,63 @@ class UI(object):
     WHEEL_SW = 22
     WHEEL_TB = 17
     WHEEL_TA = 27
-    CAPA_IRQ = 8
+    CAPA_IRQ = 4
+    CAPA_TOP = 6
+    CAPA_MID = 0
+    CAPA_BOT = 11
 
     def __init__(self):
         RPIO.setmode(RPIO.BCM)
         RPIO.setup(UI.WHEEL_SW, RPIO.IN, pull_up_down=RPIO.PUD_UP)
         RPIO.setup(UI.CAPA_IRQ, RPIO.IN, pull_up_down=RPIO.PUD_UP)
 
-        RPIO.add_interrupt_callback(UI.WHEEL_SW, self.wheel_pressed, threaded_callback=True, debounce_timeout_ms=10)
+        RPIO.add_interrupt_callback(UI.WHEEL_SW, self.wheel_pressed, threaded_callback=True, debounce_timeout_ms=40)
         self.wheel = Wheel(UI.WHEEL_TA, UI.WHEEL_TB)
 
         RPIO.wait_for_interrupts(threaded=True)
+        # Bug in RPIO? seems the pull UP has to be done twice...
+        RPIO.setup(UI.WHEEL_SW, RPIO.IN, pull_up_down=RPIO.PUD_UP)
 
         self.cap = MPR121.MPR121()
         if not self.cap.begin():
             print('Error initializing MPR121.  Check your wiring!')
             sys.exit(1)
+        RPIO.add_interrupt_callback(UI.CAPA_IRQ, self.touch_pressed, threaded_callback=True)
 
     def set_wheel_pressed_callback(self, callback=None):
         self.sw_cb = callback
 
     def wheel_pressed(self, gpio_id, val):
-        print("gpio %s: %s" % (gpio_id, val))
-        RPIO.set_pullupdn(UI.WHEEL_SW, RPIO.PUD_UP)
+        print("Wheel: %s" % val)
         if val == 0:
             self.sw_cb()
 
+    def touch_pressed(self, gpio_id, val):
+        #print("Touch: %s" % val)
+        RPIO.set_pullupdn(UI.CAPA_IRQ, RPIO.PUD_UP)
+        if val == 0:
+            current_touched = self.cap.touched()
+            # Check each pin's last and current state to see if it was pressed or released.
+            pin_bit = 1 << UI.CAPA_TOP
+            if current_touched & pin_bit:
+                    print "T",
+            else:
+                    print "-",
+            print "  ",
+            pin_bit = 1 << UI.CAPA_MID
+            if current_touched & pin_bit:
+                    print "M",
+            else:
+                    print "-",
+            print "  ",
+            pin_bit = 1 << UI.CAPA_BOT
+            if current_touched & pin_bit:
+                    print "B",
+            else:
+                    print "-",
+            print ""
+
+            last_touched = current_touched
 
 
 class Wheel(object):
@@ -69,7 +100,6 @@ class Wheel(object):
         self.cb = callback
 
     def pin_a_changed(self, gpio_id, val):
-        # RPIO.set_pullupdn(gpio_id, RPIO.PUD_UP)
         if self.state_b != RPIO.input(self.pin_b):
             return
 
@@ -101,7 +131,6 @@ class Wheel(object):
 
 
     def pin_b_changed(self, gpio_id, val):
-        # RPIO.set_pullupdn(gpio_id, RPIO.PUD_UP)
         if self.state_a != RPIO.input(self.pin_a):
             return
 
