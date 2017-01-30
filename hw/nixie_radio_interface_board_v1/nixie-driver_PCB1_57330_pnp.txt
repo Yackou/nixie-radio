@@ -1,0 +1,93 @@
+*Pick And Place List
+*Company=
+*Author=
+*eMail=
+*
+*Project=nixie-driver_PCB1_57330
+*Date=23:40:33
+*CreatedBy=Fritzing 0.9.2b.11.19.8d2d5970658f0bed09c661c9ea9a515b5f40f44c
+*
+*
+*Coordinates in mm, always center of component
+*Origin 0/0=Lower left corner of PCB
+*Rotation in degree (0-360, math. pos.)
+*
+*No;Value;Package;X;Y;Rotation;Side;Name
+1;;;4.85174;-0.82342;0;Bottom;TXT1
+2;;;35.4795;-4.45788;0;Bottom;TXT11
+3;100nF;100 mil [THT, multilayer];15.1011;-14.2643;-90;Bottom;C2
+4;;;2.15399;-44.3919;0;Bottom;TXT1
+5;;;1.99427;-4.90653;0;Bottom;TXT1
+6;;THT;40.2709;-29.5818;0;Bottom;U9
+7;;;46.6208;-3.33438;0;Top;Pad6
+8;1.5k;THT;48.6529;-41.4344;-90;Bottom;R36
+9;;;22.8245;-0.796609;0;Bottom;TXT17
+10;;;61.4739;-5.45831;0;Bottom;TXT1
+11;;THT;65.4169;-5.36639;90;Bottom;J12 (PAM8403 PWR)
+12;;;51.3127;-7.21152;0;Bottom;TXT26
+13;;THT;36.6911;-2.8343;-90;Bottom;J7 (filter coil)
+14;;THT;43.0649;-36.3544;-90;Bottom;J16
+15;;;30.3837;-4.44631;0;Bottom;TXT12
+16;;THT;13.8311;-2.8343;-90;Bottom;J4
+17;;;2.17081;-46.5144;0;Top;Pad3
+18;;;58.2692;-23.5331;0;Bottom;Via1
+19;;;40.2003;-48.2781;0;Bottom;TXT4
+20;;;7.28696;-0.796609;0;Bottom;TXT18
+21;;;4.99681;-48.3315;0;Bottom;TXT1
+22;;;39.2101;-38.2013;0;Bottom;TXT8
+23;;;26.6084;-48.3036;0;Bottom;TXT22
+24;10k;THT;10.0211;-6.3903;0;Bottom;R27
+25;;;66.3064;-36.7436;0;Bottom;TXT2
+26;;DIP (Dual Inline) [THT];57.0349;-37.6244;180;Bottom;MT2 C1
+27;;DIP (Dual Inline) [THT];39.2311;-11.7243;90;Bottom;MT2 C2
+28;;THT;66.6869;-45.2444;0;Bottom;J9 (voice transformer)
+29;;THT;53.9869;-5.36639;90;Bottom;J13 (PAM8403 in)
+30;;DIP (Dual Inline) [THT];16.3949;-33.0524;-90;Bottom;HCTN541N
+31;;;43.1731;-38.2764;0;Bottom;TXT9
+32;;;17.4987;-0.796609;0;Bottom;TXT15
+33;;;36.7354;-0.789553;0;Bottom;TXT13
+34;;THT;43.0649;-46.5144;-90;Bottom;J15
+35;;;27.6818;-30.7534;0;Bottom;TXT21
+36;;300 mil [THT];52.2089;-14.231;-90;Bottom;D3
+37;;;12.4917;-0.736213;0;Bottom;TXT20
+38;;TO92 [THT];36.1434;-41.0153;180;Bottom;Q13
+39;;;53.8872;-0.880711;0;Bottom;TXT1
+40;;;46.2226;-48.2282;0;Bottom;TXT5
+41;;;64.0489;-2.07032;0;Bottom;TXT1
+42;;THT;66.6869;-40.1644;0;Bottom;J10 (SPKR coil)
+43;2.2k;THT;40.5249;-33.3064;180;Bottom;R35
+44;;THT;31.6111;-2.8343;-90;Bottom;J8(radio HV)
+45;;THT;41.7711;-2.8343;90;Bottom;J6 (12V supply)
+46;;;56.4568;-7.2722;0;Bottom;TXT25
+47;;;9.99009;-0.737907;0;Bottom;TXT19
+48;10k;THT;10.0211;-8.9303;0;Bottom;R28
+49;;;43.0749;-0.792522;0;Bottom;TXT1
+50;;;48.9471;-2.98717;0;Bottom;TXT1
+51;;;66.7389;-48.3433;0;Bottom;TXT3
+52;;;48.6528;-33.3064;0;Top;Pad1
+53;10nF;100 mil [THT, multilayer];27.8011;-14.2643;-90;Bottom;C3
+54;10k;THT;17.6411;-10.4543;90;Bottom;R25
+55;;300 mil [THT];60.8211;-11.6989;-90;Bottom;D2
+56;100nF;100 mil [THT, multilayer];20.1811;-14.2643;-90;Bottom;C1
+57;;;58.7948;-28.2848;0;Bottom;TXT1
+58;;THT;29.0949;-21.1144;-90;Bottom;J1
+59;;THT;29.0949;-23.6544;-90;Bottom;J2
+60;;;1.91681;-2.82638;0;Top;Pad4
+61;10k;THT;22.7211;-10.4543;90;Bottom;R26
+62;;;66.6868;-2.57238;0;Top;Pad5
+63;;;46.2239;-38.1698;0;Bottom;TXT7
+64;;THT;55.2569;-2.82639;-90;Bottom;J14 (audio in)
+65;;;40.4274;-4.54396;0;Bottom;TXT10
+66;;;31.1409;-0.838378;0;Bottom;TXT14
+67;;THT;65.4169;-23.1464;-90;Bottom;J11 (PAM8403 out)
+68;;;10.0578;-48.3036;0;Bottom;TXT24
+69;;;18.8649;-48.3036;0;Bottom;TXT23
+70;2.2k;THT;40.0169;-43.9744;180;Bottom;R30
+71;;;47.9648;-13.957;0;Bottom;TXT1
+72;;;30.6705;-48.2559;0;Bottom;TXT6
+73;10k;THT;25.2611;-10.4543;90;Bottom;R29
+74;;THT;17.6649;-46.5144;-90;Bottom;J3
+75;;;15.0949;-0.820033;0;Bottom;TXT1
+76;;;2.92937;-13.1852;0;Bottom;Via2
+77;;;45.0968;-41.1804;0;Top;Pad2
+78;;;20.1615;-0.796609;0;Bottom;TXT16
