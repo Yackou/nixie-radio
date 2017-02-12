@@ -1,6 +1,6 @@
 import sys
 import RPIO
-import Adafruit_MPR121.MPR121 as MPR121
+import MPR121
 
 
 class UI(object):
@@ -63,8 +63,6 @@ class UI(object):
                     print "-",
             print ""
 
-            last_touched = current_touched
-
 
 class Wheel(object):
     CW = 0
@@ -87,15 +85,15 @@ class Wheel(object):
     def default_cb(self, val):
         print("val %s" % val)
 
-    def setup(self, min, initial, max, turns, callback):
-        print("Setting up wheel encoder: min %s initial %s max %s turns %s" % ( min, initial, max, turns))
+    def setup(self, minimum, initial, maximum, turns, callback):
+        print("Setting up wheel encoder: minimum %s initial %s maximum %s turns %s" % ( minimum, initial, maximum, turns))
         # raw_max - raw_min = turns * steps_per_turn
         # ? = 1
-        self.raw_min = min * (turns * self.steps_per_turn) / (max - min)
-        self.raw = initial * (turns * self.steps_per_turn) / (max - min)
-        self.raw_max = max * (turns * self.steps_per_turn) / (max - min)
-        self.max = max
-        self.min = min
+        self.raw_min = minimum * (turns * self.steps_per_turn) / (maximum - minimum)
+        self.raw = initial * (turns * self.steps_per_turn) / (maximum - minimum)
+        self.raw_max = maximum * (turns * self.steps_per_turn) / (maximum - minimum)
+        self.max = maximum
+        self.min = minimum
         self.turns = turns
         self.cb = callback
 
@@ -109,16 +107,16 @@ class Wheel(object):
 
         if self.state_b == 1:
             if val == 0:
-                dir = Wheel.CW
+                direction = Wheel.CW
             else:
-                dir = Wheel.CCW
+                direction = Wheel.CCW
         else:
             if val == 0:
-                dir = Wheel.CCW
+                direction = Wheel.CCW
             else:
-                dir = Wheel.CW
+                direction = Wheel.CW
 
-        if dir == Wheel.CW:
+        if direction == Wheel.CW:
             self.raw = self.raw + 1
             if self.raw > self.raw_max:
                 self.raw = self.raw_max
@@ -140,16 +138,16 @@ class Wheel(object):
 
         if self.state_a == 1:
             if val == 0:
-                dir = Wheel.CCW
+                direction = Wheel.CCW
             else:
-                dir = Wheel.CW
+                direction = Wheel.CW
         else:
             if val == 0:
-                dir = Wheel.CW
+                direction = Wheel.CW
             else:
-                dir = Wheel.CCW
+                direction = Wheel.CCW
 
-        if dir == Wheel.CW:
+        if direction == Wheel.CW:
             self.raw = self.raw + 1
             if self.raw > self.raw_max:
                 self.raw = self.raw_max
@@ -159,3 +157,15 @@ class Wheel(object):
                 self.raw = self.raw_min
 
         self.cb(int(self.raw * (self.max - self.min) / (self.turns * self.steps_per_turn)))
+
+
+if __name__ == "__main__":
+    from time import sleep
+
+    ui = UI()
+
+    try:
+        while True:
+            sleep(20)
+    except (KeyboardInterrupt, SystemExit):
+        sleep(1)
