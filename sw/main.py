@@ -121,6 +121,7 @@ class Conductor(object):
         self.state_wheel = StateWheel.VOLUME
         self.state_volume = 0
         self.state_station = 0
+        self.state_blanked = False
 
         self.state_volume_change(50)
 
@@ -143,6 +144,13 @@ class Conductor(object):
 
     def state_playing_toggle(self):
         self.state_playing_change(not self.state_playing)
+
+    def state_blanking_toggle(self):
+        self.state_blanked = not self.state_blanked
+        if self.state_blanked:
+            self.dt.blank()
+        else:
+            self.dt.unblank()
 
 
     def state_volume_change(self, new_volume):
@@ -255,6 +263,7 @@ def main(argv):
     ui.set_wheel_pressed_callback(conductor.state_playing_toggle)
     ui.wheel.setup(0, 50, 100, 0.5, conductor.state_volume_change)
 
+    ui.set_top_pressed_callback(conductor.state_blanking_toggle)
 
     if start == 'server':
         # For the server we only set the offset alarm, as it is meant to be run

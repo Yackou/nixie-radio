@@ -33,6 +33,9 @@ class UI(object):
     def set_wheel_pressed_callback(self, callback=None):
         self.sw_cb = callback
 
+    def set_top_pressed_callback(self, callback=None):
+        self.top_cb = callback
+
     def wheel_pressed(self, gpio_id, val):
         print("Wheel: %s" % val)
         if val == 0:
@@ -46,6 +49,7 @@ class UI(object):
             # Check each pin's last and current state to see if it was pressed or released.
             pin_bit = 1 << UI.CAPA_TOP
             if current_touched & pin_bit:
+                    self.top_cb()
                     print "T",
             else:
                     print "-",
