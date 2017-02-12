@@ -22,6 +22,7 @@ from LightUpAlarm import AlarmCli
 from LightUpAlarm import AlarmManager
 from LightUpServer import Server
 from user_input import UI, Wheel
+from nixie import DisplayThread
 from gi import require_version
 require_version('Gst', '1.0')
 from gi.repository import GObject, Gst
@@ -108,6 +109,8 @@ class Conductor(object):
         Gst.init(None)
 
         self.player = GstPlayer()
+        self.dt = DisplayThread()
+        self.dt.start()
 
         self.stations = []
         self.stations.append('http://direct.fipradio.fr/live/fip-midfi.mp3')
@@ -129,6 +132,7 @@ class Conductor(object):
         if new_state == True:
             self.player.play(self.stations[self.state_station], self.state_volume)
             self.player.set_volume(self.state_volume)
+            self.dt.display_number(self.state_volume)
             print('Playing music')
         else:
             self.player.stop()
@@ -146,6 +150,8 @@ class Conductor(object):
             return
 
         self.state_volume = new_volume
+        self.dt.display_number(new_volume)
+
         print("volume: %s" % self.state_volume)
 
         if self.state_playing:
