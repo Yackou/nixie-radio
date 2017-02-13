@@ -42,7 +42,7 @@ d_4 = (1, 1, 1, 0) # 14
 
 digits = (d_0, d_1, d_2, d_3, d_4, d_5, d_6, d_7, d_8, d_9)
 
-class sequence:
+class Sequence:
 	def __init__(self, channel = 0, gpios = (), gpio_sets = [()]):
 		self.channel = channel
 		self.gpios = gpios
@@ -72,21 +72,29 @@ class sequence:
 		for gpio in self.gpios:
 			PWM.clear_channel_gpio(self.channel, gpio)
 
-class clock_sequence:
+class ClockSequence:
 	def __init__(self, period = 10000):
 		PWM.setup()
 		PWM.init_channel(0, period)
 		PWM.print_channel(0)
 
-class standard_display:
+class StandardDisplay:
+	TUBE_LENGTH = 170
+	STRIDE = 250
+	DIGIT_LENGTH = 240
 	def __init__(self):
-		self.tubes = [(tube_0, 1, 170), (tube_1, 251, 170), (tube_2, 501, 170), (tube_3, 751, 170)]
-		self.tube = sequence(0, tube_gpios, self.tubes)
+		self.tube_length = StandardDisplay.TUBE_LENGTH
+		self.tube = Sequence(0, tube_gpios, [(tube_0, 1, self.tube_length),
+											(tube_1, 1 + StandardDisplay.STRIDE, self.tube_length),
+											(tube_2, 1 + 2 * StandardDisplay.STRIDE, self.tube_length),
+											(tube_3, 1 + 3 * StandardDisplay.STRIDE, self.tube_length)])
 		self.tube.channel = 0
 		self.tube.apply()
 
-		self.digits = [0, 0, 0, 0]
-		self.digit = sequence(0, digit_gpios, [(digits[self.digits[0]], 0, 240), (digits[self.digits[1]], 250, 240), (digits[self.digits[2]], 500, 240), (digits[self.digits[3]], 750, 240), ])
+		self.digit = Sequence(0, digit_gpios, [(digits[0], 0, StandardDisplay.DIGIT_LENGTH),
+											(digits[0], StandardDisplay.STRIDE, StandardDisplay.DIGIT_LENGTH),
+											(digits[0], 2 * StandardDisplay.STRIDE, StandardDisplay.DIGIT_LENGTH),
+											(digits[0], 3 * StandardDisplay.STRIDE, StandardDisplay.DIGIT_LENGTH), ])
 		self.digit.channel = 0
 		self.digit.apply()
 
@@ -98,17 +106,25 @@ class standard_display:
 		self.digit.apply()
 		self.tube.apply()
 
+	def set_brightness(self, brightness):
+		self.tube_length = (brightness * StandardDisplay.TUBE_LENGTH) / 100
+		if self.tube_length > StandardDisplay.TUBE_LENGTH:
+			self.tube_length = StandardDisplay.TUBE_LENGTH
+		if self.tube_length < 0:
+			self.tube_length = 0
+
+		self.reset()
+		self.apply()
+
+
 	def set_tube(self, tube = 0, digit = 0):
-		self.digits[tube] = digit
-		self.digit.gpio_sets = [(digits[self.digits[0]], 0, 240), (digits[self.digits[1]], 250, 240), (digits[self.digits[2]], 500, 240), (digits[self.digits[3]], 750, 240), ]
+		self.digit.gpio_sets[tube] = (digits[digit], tube * StandardDisplay.STRIDE, StandardDisplay.DIGIT_LENGTH)
 
 	def blank_tube(self, tube):
-		self.tubes[tube] = (blank_tube, 1 + 250*tube, 170)
-		self.tube.gpio_sets[tube] =  (blank_tube, 1 + 250*tube, 170)
+		self.tube.gpio_sets[tube] =  (blank_tube, 1 + tube * StandardDisplay.STRIDE, self.tube_length)
 
 	def unblank_tube(self, tube):
-		self.tubes[tube] = (tubes[tube], 1 + 250*tube, 170)
-		self.tube.gpio_sets[tube] =  (tubes[tube], 1 + 250*tube, 170)
+		self.tube.gpio_sets[tube] =  (tubes[tube], 1 + tube * StandardDisplay.STRIDE, self.tube_length)
 
 
 class DisplayThread(threading.Thread):
@@ -116,8 +132,8 @@ class DisplayThread(threading.Thread):
 		threading.Thread.__init__(self)
 		self.daemon = True
 
-		self.cs = clock_sequence()
-		self.display = standard_display()
+		self.cs = ClockSequence()
+		self.display = StandardDisplay()
 		self.blanked = False
 		self.custom = False
 		self.custom_tubes = [ 0, 0, 0, 0 ]
@@ -259,7 +275,7 @@ if __name__ == "__main__":
 		"""
 		cs = clock_sequence()
 
-		display = standard_display()
+		display = StandardDisplay()
 
 		sleep(1)
 		display.set_tube(0, 1)
@@ -276,11 +292,11 @@ if __name__ == "__main__":
 		sleep(1)
 
 		# Add some pulses to the subcycle
-		tube = sequence(0, tube_gpios, ((tube_0, 1, 170), (tube_1, 251, 170), (tube_2, 501, 170), (tube_3, 751, 170), ))
+		tube = Sequence(0, tube_gpios, ((tube_0, 1, 170), (tube_1, 251, 170), (tube_2, 501, 170), (tube_3, 751, 170), ))
 		tube.channel = 0
 		tube.apply()
 
-		digit = sequence(0, digit_gpios, ((digits[0], 0, 240), (digits[1], 250, 240), (digits[2], 500, 240), (digits[3], 750, 240), ))
+		digit = Sequence(0, digit_gpios, ((digits[0], 0, 240), (digits[1], 250, 240), (digits[2], 500, 240), (digits[3], 750, 240), ))
 		digit.channel = 0
 		digit.apply()
 
