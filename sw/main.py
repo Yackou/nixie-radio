@@ -344,6 +344,8 @@ def main(argv):
                 while cli_thread.isAlive():
                     sleep(0.2)
         except (KeyboardInterrupt, SystemExit):
+            conductor.dt.blank()
+            conductor.player.stop()
             # Allow the clean exit from the CLI interface to execute
             if cli_thread.isAlive():
                 sleep(1)
