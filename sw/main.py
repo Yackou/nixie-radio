@@ -17,6 +17,7 @@ import getopt
 import thread
 import platform
 import threading
+import subprocess
 from time import sleep
 from LightUpAlarm import AlarmCli
 from LightUpAlarm import AlarmManager
@@ -96,6 +97,37 @@ class GstPlayer(object):
         self.player.set_property("volume", new_volume/100.0)
 
 
+class Watchdog(threading.Thread):
+    def __init__(self, online, offline):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.current_status = 1
+        self.offline = offline
+        self.online = online
+
+    def run(self):
+        timeout = 2
+        dev_null = open("/dev/null")
+        hostname = "gate"
+        cmd_str =  "ping -c1 -w2 " + hostname
+        while True:
+            return_code = subprocess.call(cmd_str.split(), stderr= dev_null, stdout = dev_null)
+
+            if return_code != 0 and self.current_status == 1:
+                self.current_status = 0
+                self.offline()
+                subprocess.call('ifdown wlan0'.split())
+                subprocess.call('rmmod mt7601u'.split())
+                sleep(1)
+                subprocess.call('modprobe mt7601u'.split())
+                subprocess.call('ifup wlan0'.split())
+
+            if return_code == 0 and self.current_status == 0:
+                self.current_status = 1
+                self.online()
+
+            sleep(timeout)
+
 
 class StateWheel:
     VOLUME = 0
@@ -113,14 +145,17 @@ class Conductor(object):
         self.dt.start()
 
         self.stations = []
+        self.stations.append('file:///home/yannick/Music/01 - Il Y A.mp3')
+        self.stations.append('http://tsfjazz.ice.infomaniak.ch/tsfjazz-high.mp3')
         self.stations.append('http://direct.fipradio.fr/live/fip-midfi.mp3')
         self.stations.append('http://rivieraradio.ice.infomaniak.ch:80/rivieraradio-high')
 
+        self.state_offline = False
         self.state_playing = False
         self.state_wheel_switch = StateWheelSwitch.PLAY
         self.state_wheel = StateWheel.VOLUME
         self.state_volume = 0
-        self.state_station = 0
+        self.state_station = 1
         self.state_blanked = False
 
         self.state_volume_change(50)
@@ -131,7 +166,10 @@ class Conductor(object):
             return
 
         if new_state == True:
-            self.player.play(self.stations[self.state_station], self.state_volume)
+            if self.state_offline:
+                self.player.play(self.stations[0], self.state_volume)
+            else:
+                self.player.play(self.stations[self.state_station], self.state_volume)
             self.player.set_volume(self.state_volume)
             self.dt.display_number(self.state_volume)
             print('Playing music')
@@ -186,7 +224,19 @@ class Conductor(object):
         if self.state_wheel_switch == StateWheelSwitch.PLAY:
             self.state_playing_toggle()
 
+    def online(self):
+        print("Back online")
+        self.state_offline = False
+        if self.state_playing:
+            self.state_playing_change(False)
+            self.state_playing_change(True)
 
+    def offline(self):
+        print("Went offline")
+        self.state_offline = True
+        if self.state_playing:
+            self.state_playing_change(False)
+            self.state_playing_change(True)
 
 def parsing_args(argv):
     """
@@ -259,6 +309,8 @@ def main(argv):
 
     conductor = Conductor()
     ui = UI()
+    watchdog = Watchdog(conductor.online, conductor.offline)
+    watchdog.start()
 
     ui.set_wheel_pressed_callback(conductor.state_playing_toggle)
     ui.wheel.setup(0, 50, 100, 0.5, conductor.state_volume_change)
