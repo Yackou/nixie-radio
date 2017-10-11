@@ -158,7 +158,7 @@ class Conductor(object):
         self.state_station = 1
         self.state_blanked = False
 
-        self.state_volume_change(50)
+        self.state_volume_change(12)
 
 
     def state_playing_change(self, new_state):
@@ -195,13 +195,13 @@ class Conductor(object):
         if new_volume == self.state_volume:
             return
 
-        self.state_volume = new_volume
-        self.dt.display_number(new_volume)
+        self.state_volume = new_volume * 100 / 24
+        self.dt.display_number(self.state_volume)
 
         print("volume: %s" % self.state_volume)
 
         if self.state_playing:
-            self.player.set_volume(new_volume)
+            self.player.set_volume(self.state_volume)
 
 
     def alert(self):
@@ -313,7 +313,7 @@ def main(argv):
     watchdog.start()
 
     ui.set_wheel_pressed_callback(conductor.state_playing_toggle)
-    ui.wheel.setup(0, 50, 100, 0.5, conductor.state_volume_change)
+    ui.wheel.setup(0, 12, 24, 1, conductor.state_volume_change)
 
     ui.set_top_pressed_callback(conductor.state_blanking_toggle)
 
