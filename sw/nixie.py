@@ -18,6 +18,7 @@ cathode_B = 18
 cathode_C = 11
 cathode_D = 9
 
+pwm_channel = 14
 
 tube_gpios = (anode_a, anode_b, anode_c)
 digit_gpios = (cathode_A, cathode_B, cathode_C, cathode_D)
@@ -55,9 +56,6 @@ class Sequence:
 			PWM.add_channel_pulse(self.channel, gpio, 0, 1)
 		self.reset()
 
-	def set_channel(self, channel = 0):
-		self.channel = channel
-
 	def apply(self):
 		for (gpio_set, start, width) in self.gpio_sets:
 			#print gpio_set
@@ -75,8 +73,8 @@ class Sequence:
 class ClockSequence:
 	def __init__(self, period = 10000):
 		PWM.setup()
-		PWM.init_channel(0, period)
-		PWM.print_channel(0)
+		PWM.init_channel(pwm_channel, period)
+		PWM.print_channel(pwm_channel)
 
 class StandardDisplay:
 	TUBE_LENGTH = 170
@@ -84,18 +82,16 @@ class StandardDisplay:
 	DIGIT_LENGTH = 240
 	def __init__(self):
 		self.tube_length = StandardDisplay.TUBE_LENGTH
-		self.tube = Sequence(0, tube_gpios, [(tube_0, 1, self.tube_length),
+		self.tube = Sequence(pwm_channel, tube_gpios, [(tube_0, 1, self.tube_length),
 											(tube_1, 1 + StandardDisplay.STRIDE, self.tube_length),
 											(tube_2, 1 + 2 * StandardDisplay.STRIDE, self.tube_length),
 											(tube_3, 1 + 3 * StandardDisplay.STRIDE, self.tube_length)])
-		self.tube.channel = 0
 		self.tube.apply()
 
-		self.digit = Sequence(0, digit_gpios, [(digits[0], 0, StandardDisplay.DIGIT_LENGTH),
+		self.digit = Sequence(pwm_channel, digit_gpios, [(digits[0], 0, StandardDisplay.DIGIT_LENGTH),
 											(digits[0], StandardDisplay.STRIDE, StandardDisplay.DIGIT_LENGTH),
 											(digits[0], 2 * StandardDisplay.STRIDE, StandardDisplay.DIGIT_LENGTH),
 											(digits[0], 3 * StandardDisplay.STRIDE, StandardDisplay.DIGIT_LENGTH), ])
-		self.digit.channel = 0
 		self.digit.apply()
 
 	def reset(self):
@@ -292,12 +288,10 @@ if __name__ == "__main__":
 		sleep(1)
 
 		# Add some pulses to the subcycle
-		tube = Sequence(0, tube_gpios, ((tube_0, 1, 170), (tube_1, 251, 170), (tube_2, 501, 170), (tube_3, 751, 170), ))
-		tube.channel = 0
+		tube = Sequence(pwm_channel, tube_gpios, ((tube_0, 1, 170), (tube_1, 251, 170), (tube_2, 501, 170), (tube_3, 751, 170), ))
 		tube.apply()
 
-		digit = Sequence(0, digit_gpios, ((digits[0], 0, 240), (digits[1], 250, 240), (digits[2], 500, 240), (digits[3], 750, 240), ))
-		digit.channel = 0
+		digit = Sequence(pwm_channel, digit_gpios, ((digits[0], 0, 240), (digits[1], 250, 240), (digits[2], 500, 240), (digits[3], 750, 240), ))
 		digit.apply()
 
 		sleep(1)
@@ -324,8 +318,8 @@ if __name__ == "__main__":
 		digit.reset()
 		while (True):
 			i = (i + step)
-			PWM.clear_channel_gpio(0, cathode_D)
-			PWM.add_channel_pulse(0, cathode_D, start=i, width=240-i)
+			PWM.clear_channel_gpio(pwm_channel, cathode_D)
+			PWM.add_channel_pulse(pwm_channel, cathode_D, start=i, width=240-i)
 
 			if (i == 240) or (i == 0):
 				step = -step
