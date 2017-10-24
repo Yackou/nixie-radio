@@ -144,11 +144,15 @@ class Conductor(object):
         self.dt = DisplayThread()
         self.dt.start()
 
+        self.alarm_mgr = None
+
+        self.offline_station = 'file:///home/yannick/Music/01 - Il Y A.mp3'
         self.stations = []
         self.stations.append('file:///home/yannick/Music/01 - Il Y A.mp3')
         self.stations.append('http://tsfjazz.ice.infomaniak.ch/tsfjazz-high.mp3')
         self.stations.append('http://direct.fipradio.fr/live/fip-midfi.mp3')
         self.stations.append('http://rivieraradio.ice.infomaniak.ch:80/rivieraradio-high')
+        self.current_station = self.offline_station
 
         self.state_offline = False
         self.state_playing = False
@@ -160,6 +164,12 @@ class Conductor(object):
 
         self.state_volume_change(12)
 
+    def attach_alarm_mgr(self, alarm_mgr):
+        self.alarm_mgr = alarm_mgr
+        self.current_station = self.alarm_mgr.get_all_stations()[0].url
+
+    def state_station_change(self, new_station):
+        self.current_station = new_station
 
     def state_playing_change(self, new_state):
         if new_state == self.state_playing:
@@ -167,9 +177,9 @@ class Conductor(object):
 
         if new_state == True:
             if self.state_offline:
-                self.player.play(self.stations[0], self.state_volume)
+                self.player.play(self.offline_station, self.state_volume)
             else:
-                self.player.play(self.stations[self.state_station], self.state_volume)
+                self.player.play(self.current_station, self.state_volume)
             self.player.set_volume(self.state_volume)
             self.dt.display_number(self.state_volume)
             print('Playing music')
@@ -204,14 +214,18 @@ class Conductor(object):
             self.player.set_volume(self.state_volume)
 
 
-    def alert(self):
+    def alert(self, alarm_item):
+        station = self.alarm_mgr.get_station(alarm_item.station_id)
         # '\a' is a request to the terminal to beep
-        print('\n\nRING RING RING!!!!\a')
+        print('\n\nRING RING RING ' + station.name + ' !!!!\a')
         sleep(0.8)
         print('\a')
         sleep(0.8)
         print('\a')
 
+        self.state_volume_change(12)
+        self.state_station_change(station.url)
+        self.state_playing_change(False)
         self.state_playing_change(True)
 
 
@@ -330,6 +344,7 @@ def main(argv):
         alarm_mgr = AlarmManager.AlarmManager(
             alert_callback=conductor.alert,
             offset_alert_callback=None)
+        conductor.attach_alarm_mgr(alarm_mgr)
         cli_thread.attach_alarm_mgr(alarm_mgr)
         cli_thread.start()
 
@@ -344,6 +359,7 @@ def main(argv):
                 while cli_thread.isAlive():
                     sleep(0.2)
         except (KeyboardInterrupt, SystemExit):
+            print("Exiting...")
             conductor.dt.blank()
             conductor.player.stop()
             # Allow the clean exit from the CLI interface to execute
