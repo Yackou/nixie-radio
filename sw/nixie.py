@@ -18,7 +18,8 @@ cathode_B = 18
 cathode_C = 11
 cathode_D = 9
 
-pwm_channel = 14
+nixie_channel = 7
+dots_channel = 6
 
 tube_gpios = (anode_a, anode_b, anode_c)
 digit_gpios = (cathode_A, cathode_B, cathode_C, cathode_D)
@@ -43,69 +44,83 @@ d_4 = (1, 1, 1, 0) # 14
 
 digits = (d_0, d_1, d_2, d_3, d_4, d_5, d_6, d_7, d_8, d_9)
 
-class Sequence:
-	def __init__(self, channel = 0, gpios = (), gpio_sets = [()]):
+class DMAChannel:
+	def __init__(self, channel = 0, period = 10000, gpios = ()):
 		self.channel = channel
 		self.gpios = gpios
-		self.gpio_sets = gpio_sets
 
-		print gpio_sets
+		PWM.init_channel(channel, period)
+		PWM.print_channel(channel)
+
+		# Calling clear channel on a gpio that was not used with add_channel_pulse triggers an error,
+		# so avoid it by adding/removing all gpios at channel init time
 		for gpio in gpios:
-			RPIO.setup(gpio, RPIO.OUT)
-			RPIO.output(gpio, False)
 			PWM.add_channel_pulse(self.channel, gpio, 0, 1)
 		self.reset()
 
-	def apply(self):
-		for (gpio_set, start, width) in self.gpio_sets:
+	def apply(self, gpio_sets, gpios = None):
+		if gpios == None:
+			gpios = self.gpios
+		for (gpio_set, start, width) in gpio_sets:
 			#print gpio_set
 			#print start
 			#print width
-			for i in range(0, len(self.gpios)):
+			for i in range(0, len(gpios)):
 				#print i
 				if gpio_set[i] == 1:
-					PWM.add_channel_pulse(self.channel, self.gpios[i], start, width)
+					PWM.add_channel_pulse(self.channel, gpios[i], start, width)
 
 	def reset(self):
-		for gpio in self.gpios:
+		for gpio in reversed(self.gpios):
 			PWM.clear_channel_gpio(self.channel, gpio)
 
-class ClockSequence:
-	def __init__(self, period = 10000):
-		PWM.setup()
-		PWM.init_channel(pwm_channel, period)
-		PWM.print_channel(pwm_channel)
 
-class StandardDisplay:
+class Dots:
+	PERIOD = 1000000
+	DOT_LENGTH = 49000
+	STRIDE = 0
+	def __init__(self):
+		self.dot_length = Dots.DOT_LENGTH
+		self.channel = DMAChannel(channel = dots_channel, period = Dots.PERIOD, gpios = (dot_top, dot_bot))
+
+		self.channel.apply([((1, 0), 1, self.dot_length),
+							((0, 1), 1 + Dots.STRIDE, self.dot_length)])
+
+	def reset(self):
+		self.channel.reset()
+
+
+
+class Display:
+	PERIOD = 10000
 	TUBE_LENGTH = 170
 	STRIDE = 250
 	DIGIT_LENGTH = 240
 	def __init__(self):
-		self.tube_length = StandardDisplay.TUBE_LENGTH
-		self.tube = Sequence(pwm_channel, tube_gpios, [(tube_0, 1, self.tube_length),
-											(tube_1, 1 + StandardDisplay.STRIDE, self.tube_length),
-											(tube_2, 1 + 2 * StandardDisplay.STRIDE, self.tube_length),
-											(tube_3, 1 + 3 * StandardDisplay.STRIDE, self.tube_length)])
-		self.tube.apply()
+		self.tube_length = Display.TUBE_LENGTH
+		self.channel = DMAChannel(channel = nixie_channel, period = Display.PERIOD, gpios = tube_gpios + digit_gpios)
+		self.tube_sets = [(tube_0, 1, self.tube_length),
+						  (tube_1, 1 + Display.STRIDE, self.tube_length),
+						  (tube_2, 1 + 2 * Display.STRIDE, self.tube_length),
+						  (tube_3, 1 + 3 * Display.STRIDE, self.tube_length)]
 
-		self.digit = Sequence(pwm_channel, digit_gpios, [(digits[0], 0, StandardDisplay.DIGIT_LENGTH),
-											(digits[0], StandardDisplay.STRIDE, StandardDisplay.DIGIT_LENGTH),
-											(digits[0], 2 * StandardDisplay.STRIDE, StandardDisplay.DIGIT_LENGTH),
-											(digits[0], 3 * StandardDisplay.STRIDE, StandardDisplay.DIGIT_LENGTH), ])
-		self.digit.apply()
+		self.digit_sets = [(digits[0], 0, Display.DIGIT_LENGTH),
+						   (digits[0], Display.STRIDE, Display.DIGIT_LENGTH),
+						   (digits[0], 2 * Display.STRIDE, Display.DIGIT_LENGTH),
+						   (digits[0], 3 * Display.STRIDE, Display.DIGIT_LENGTH), ]
+		self.apply()
 
 	def reset(self):
-		self.tube.reset()
-		self.digit.reset()
+		self.channel.reset()
 
 	def apply(self):
-		self.digit.apply()
-		self.tube.apply()
+		self.channel.apply(gpio_sets = self.tube_sets, gpios = tube_gpios)
+		self.channel.apply(gpio_sets = self.digit_sets, gpios = digit_gpios)
 
 	def set_brightness(self, brightness):
-		self.tube_length = (brightness * StandardDisplay.TUBE_LENGTH) / 100
-		if self.tube_length > StandardDisplay.TUBE_LENGTH:
-			self.tube_length = StandardDisplay.TUBE_LENGTH
+		self.tube_length = (brightness * Display.TUBE_LENGTH) / 24
+		if self.tube_length > Display.TUBE_LENGTH:
+			self.tube_length = Display.TUBE_LENGTH
 		if self.tube_length < 0:
 			self.tube_length = 0
 
@@ -114,13 +129,13 @@ class StandardDisplay:
 
 
 	def set_tube(self, tube = 0, digit = 0):
-		self.digit.gpio_sets[tube] = (digits[digit], tube * StandardDisplay.STRIDE, StandardDisplay.DIGIT_LENGTH)
+		self.digit_sets[tube] = (digits[digit], tube * Display.STRIDE, Display.DIGIT_LENGTH)
 
 	def blank_tube(self, tube):
-		self.tube.gpio_sets[tube] =  (blank_tube, 1 + tube * StandardDisplay.STRIDE, self.tube_length)
+		self.tube_sets[tube] =  (blank_tube, 1 + tube * Display.STRIDE, self.tube_length)
 
 	def unblank_tube(self, tube):
-		self.tube.gpio_sets[tube] =  (tubes[tube], 1 + tube * StandardDisplay.STRIDE, self.tube_length)
+		self.tube_sets[tube] =  (tubes[tube], 1 + tube * Display.STRIDE, self.tube_length)
 
 
 class DisplayThread(threading.Thread):
@@ -128,12 +143,16 @@ class DisplayThread(threading.Thread):
 		threading.Thread.__init__(self)
 		self.daemon = True
 
-		self.cs = ClockSequence()
-		self.display = StandardDisplay()
+		PWM.setup(pulse_incr_us=10)
+
+		self.display = Display()
 		self.blanked = False
 		self.custom = False
 		self.custom_tubes = [ 0, 0, 0, 0 ]
 		self.custom_event = threading.Event()
+
+		self.dots = Dots()
+
 
 	def run(self):
 		current_time = localtime()
@@ -177,12 +196,14 @@ class DisplayThread(threading.Thread):
 			elif self.blanked:
 				print("blanked")
 				previous_time = localtime(0)
+				self.dots.reset()
 				self.display.reset()
 				self.display.blank_tube(0)
 				self.display.blank_tube(1)
 				self.display.blank_tube(2)
 				self.display.blank_tube(3)
 				self.display.apply()
+				#PWM.clear_channel(self.tube.channel)
 
 			else:
 				print("time")
@@ -215,6 +236,7 @@ class DisplayThread(threading.Thread):
 			if not event:
 				self.custom = False	 # There is a race condition here
 			self.custom_event.clear()
+
 
 	def display_number(self, number = 0):
 		if number >= 1000:
@@ -271,7 +293,7 @@ if __name__ == "__main__":
 		"""
 		cs = clock_sequence()
 
-		display = StandardDisplay()
+		display = Display()
 
 		sleep(1)
 		display.set_tube(0, 1)
@@ -288,10 +310,10 @@ if __name__ == "__main__":
 		sleep(1)
 
 		# Add some pulses to the subcycle
-		tube = Sequence(pwm_channel, tube_gpios, ((tube_0, 1, 170), (tube_1, 251, 170), (tube_2, 501, 170), (tube_3, 751, 170), ))
+		tube = Sequence(nixie_channel, tube_gpios, ((tube_0, 1, 170), (tube_1, 251, 170), (tube_2, 501, 170), (tube_3, 751, 170), ))
 		tube.apply()
 
-		digit = Sequence(pwm_channel, digit_gpios, ((digits[0], 0, 240), (digits[1], 250, 240), (digits[2], 500, 240), (digits[3], 750, 240), ))
+		digit = Sequence(nixie_channel, digit_gpios, ((digits[0], 0, 240), (digits[1], 250, 240), (digits[2], 500, 240), (digits[3], 750, 240), ))
 		digit.apply()
 
 		sleep(1)
@@ -318,18 +340,18 @@ if __name__ == "__main__":
 		digit.reset()
 		while (True):
 			i = (i + step)
-			PWM.clear_channel_gpio(pwm_channel, cathode_D)
-			PWM.add_channel_pulse(pwm_channel, cathode_D, start=i, width=240-i)
+			PWM.clear_channel_gpio(nixie_channel, cathode_D)
+			PWM.add_channel_pulse(nixie_channel, cathode_D, start=i, width=240-i)
 
 			if (i == 240) or (i == 0):
 				step = -step
 				sleep(0.9)
 			sleep(0.1)
 		"""
-	except KeyboardInterrupt:
+	except (KeyboardInterrupt, SystemExit):
 		# Stop PWM for specific GPIO on channel 0
-		PWM.clear_channel_gpio(0, anode_a)
-		PWM.clear_channel_gpio(0, anode_c)
+		PWM.clear_channel_gpio(nixie_channel, anode_a)
+		PWM.clear_channel_gpio(nixie_channel, anode_c)
 
 		# Shutdown all PWM and DMA activity
 		PWM.cleanup()

@@ -72,6 +72,7 @@ class CliThread(threading.Thread):
         self.cli_instance.cmdloop()
         # Exit from cli returns here. User has requested the app to exit, and
         # this thread needs to request a keyboard interrupt to the main thread.
+        print("Exiting from CLI...")
         thread.interrupt_main()
 
     def callback_event(self):
@@ -110,6 +111,7 @@ class Watchdog(threading.Thread):
         dev_null = open("/dev/null")
         hostname = "gate"
         cmd_str =  "ping -c1 -w2 " + hostname
+
         while True:
             return_code = subprocess.call(cmd_str.split(), stderr= dev_null, stdout = dev_null)
 
@@ -166,7 +168,10 @@ class Conductor(object):
 
     def attach_alarm_mgr(self, alarm_mgr):
         self.alarm_mgr = alarm_mgr
-        self.current_station = self.alarm_mgr.get_all_stations()[0].url
+        stations = self.alarm_mgr.get_all_stations()
+        if len(stations) > 0:
+            self.current_station = self.alarm_mgr.get_all_stations()[0].url
+
 
     def state_station_change(self, new_station):
         self.current_station = new_station
