@@ -44,6 +44,13 @@ d_4 = (1, 1, 1, 0) # 14
 
 digits = (d_0, d_1, d_2, d_3, d_4, d_5, d_6, d_7, d_8, d_9)
 
+digit_sets = map(lambda (a,b,c,d): (a << digit_gpios[0]) | (b << digit_gpios[1]) | (c << digit_gpios[2]) | (d << digit_gpios[3]), digits)
+digit_mask = (1 << digit_gpios[0]) | (1 << digit_gpios[1]) | (1 << digit_gpios[2]) | (1 << digit_gpios[3])
+
+tube_sets = map(lambda (a,b,c): (a << tube_gpios[0]) | (b << tube_gpios[1]) | (c << tube_gpios[2]), tubes)
+tube_mask = (1 << tube_gpios[0]) | (1 << tube_gpios[1]) | (1 << tube_gpios[2])
+
+
 class DMAChannel:
 	def __init__(self, channel = 0, period = 10000, gpios = ()):
 		self.channel = channel
@@ -70,6 +77,19 @@ class DMAChannel:
 				if gpio_set[i] == 1:
 					PWM.add_channel_pulse(self.channel, gpios[i], start, width)
 
+	def set_on(self, position):
+		PWM.buffer_set_on(self.channel, position)
+
+	def set_off(self, position):
+		PWM.buffer_set_off(self.channel, position)
+
+	def assign(self, gpios, position):
+		for gpio in gpios:
+			PWM.buffer_assign(self.channel, gpio, position)
+
+	def set_mask(self, set, mask, position):
+		PWM.buffer_set_mask(self.channel, set, mask, position)
+
 	def reset(self):
 		for gpio in reversed(self.gpios):
 			PWM.clear_channel_gpio(self.channel, gpio)
@@ -90,52 +110,73 @@ class Dots:
 		self.channel.reset()
 
 
+class Tube:
+	TUBE_LENGTH = 170
+	DIGIT_LENGTH = 240
+	def __init__(self, channel, tube = 0, offset = 0):
+		self.start = offset
+		self.tube_length = Tube.TUBE_LENGTH
+		self.channel = channel
+
+		# Digits
+		channel.set_on(self.start)
+
+		channel.assign(digit_gpios, self.start + self.DIGIT_LENGTH)
+		channel.set_off(self.start + self.DIGIT_LENGTH)
+
+		# Tubes
+		channel.set_mask(tube_sets[tube], tube_mask, self.start + 1)
+		channel.set_on(self.start + 1)
+
+		channel.set_mask(tube_mask, tube_mask, self.start + 1 + self.tube_length)
+		channel.set_off(self.start + 1 + self.tube_length)
+
+	def set_digit(self, digit = 0):
+		self.channel.set_mask(digit_sets[digit], digit_mask, self.start)
+		self.channel.set_on(self.start)
+
+	def blank(self):
+		# TODO: implement set_none and use it rather than clearing the GPIOs, since they should already be clear
+		self.channel.set_off(self.start + 1)
+
+	def unblank(self):
+		self.channel.set_on(self.start + 1)
+
+	def set_brightness(self, percentage):
+		tube_length = (min(max(percentage, 0), 100) * Tube.TUBE_LENGTH) / 100
+		tube_length = max(tube_length, 1)
+
+		if tube_length != self.tube_length:
+			self.channel.set_mask(tube_mask, tube_mask, self.start + 1 + tube_length)
+			self.channel.set_off(self.start + 1 + tube_length)
+
+			self.channel.set_mask(0, tube_mask, self.start + 1 + self.tube_length)
+			self.channel.set_off(self.start + 1 + self.tube_length) #TODO implement set_none
+
+			self.tube_length = tube_length
+
 
 class Display:
 	PERIOD = 10000
-	TUBE_LENGTH = 170
 	STRIDE = 250
-	DIGIT_LENGTH = 240
 	def __init__(self):
-		self.tube_length = Display.TUBE_LENGTH
 		self.channel = DMAChannel(channel = nixie_channel, period = Display.PERIOD, gpios = tube_gpios + digit_gpios)
-		self.tube_sets = [(tube_0, 1, self.tube_length),
-						  (tube_1, 1 + Display.STRIDE, self.tube_length),
-						  (tube_2, 1 + 2 * Display.STRIDE, self.tube_length),
-						  (tube_3, 1 + 3 * Display.STRIDE, self.tube_length)]
-
-		self.digit_sets = [(digits[0], 0, Display.DIGIT_LENGTH),
-						   (digits[0], Display.STRIDE, Display.DIGIT_LENGTH),
-						   (digits[0], 2 * Display.STRIDE, Display.DIGIT_LENGTH),
-						   (digits[0], 3 * Display.STRIDE, Display.DIGIT_LENGTH), ]
-		self.apply()
-
-	def reset(self):
-		self.channel.reset()
-
-	def apply(self):
-		self.channel.apply(gpio_sets = self.tube_sets, gpios = tube_gpios)
-		self.channel.apply(gpio_sets = self.digit_sets, gpios = digit_gpios)
+		self.tubes = []
+		for i in range(0,4):
+			self.tubes.append(Tube(self.channel, i, i * Display.STRIDE))
 
 	def set_brightness(self, brightness):
-		self.tube_length = (brightness * Display.TUBE_LENGTH) / 24
-		if self.tube_length > Display.TUBE_LENGTH:
-			self.tube_length = Display.TUBE_LENGTH
-		if self.tube_length < 0:
-			self.tube_length = 0
-
-		self.reset()
-		self.apply()
-
+		for i in range(0,4):
+			self.tubes[i].set_brightness(brightness)
 
 	def set_tube(self, tube = 0, digit = 0):
-		self.digit_sets[tube] = (digits[digit], tube * Display.STRIDE, Display.DIGIT_LENGTH)
+		self.tubes[tube].set_digit(digit)
 
 	def blank_tube(self, tube):
-		self.tube_sets[tube] =  (blank_tube, 1 + tube * Display.STRIDE, self.tube_length)
+		self.tubes[tube].blank()
 
 	def unblank_tube(self, tube):
-		self.tube_sets[tube] =  (tubes[tube], 1 + tube * Display.STRIDE, self.tube_length)
+		self.tubes[tube].unblank()
 
 
 class DisplayThread(threading.Thread):
@@ -165,7 +206,6 @@ class DisplayThread(threading.Thread):
 				print("custom")
 				timeout = 3
 				previous_time = localtime(0)
-				self.display.reset()
 
 				if self.custom_tubes[0] == -1:
 					self.display.blank_tube(0)
@@ -191,25 +231,20 @@ class DisplayThread(threading.Thread):
 					self.display.unblank_tube(3)
 					self.display.set_tube(3, self.custom_tubes[3])
 
-				self.display.apply()
-
 			elif self.blanked:
 				print("blanked")
 				previous_time = localtime(0)
 				self.dots.reset()
-				self.display.reset()
+
 				self.display.blank_tube(0)
 				self.display.blank_tube(1)
 				self.display.blank_tube(2)
 				self.display.blank_tube(3)
-				self.display.apply()
-				#PWM.clear_channel(self.tube.channel)
 
 			else:
 				print("time")
 				current_time = localtime()
 				if current_time.tm_hour != previous_time.tm_hour or current_time.tm_min != previous_time.tm_min:
-					self.display.reset()
 
 					if current_time.tm_hour >= 10:
 						self.display.unblank_tube(0)
@@ -225,8 +260,6 @@ class DisplayThread(threading.Thread):
 
 					self.display.unblank_tube(3)
 					self.display.set_tube(3, current_time.tm_min % 10)
-
-					self.display.apply()
 
 				previous_time = current_time
 				timeout = 60 - current_time.tm_sec
