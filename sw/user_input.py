@@ -92,15 +92,16 @@ class Wheel(object):
 
 		self.state_a = RPIO.input(pin_a)
 		self.state_b = RPIO.input(pin_b)
-		self.setup(0, 50, 100, 1, self.default_cb)
+		self.setup(0, 50, 100, 1, self.steps_per_turn, self.default_cb)
 
 	def default_cb(self, val):
 		print("val %s" % val)
 
-	def setup(self, minimum, initial, maximum, turns, callback):
+	def setup(self, minimum, initial, maximum, turns, steps_per_turn, callback):
 		print("Setting up wheel encoder: minimum %s initial %s maximum %s turns %s" % ( minimum, initial, maximum, turns))
 		# raw_max - raw_min = turns * steps_per_turn
 		# ? = 1
+		self.steps_per_turn = steps_per_turn
 		self.raw_min = minimum * (turns * self.steps_per_turn) / (maximum - minimum)
 		self.raw = initial * (turns * self.steps_per_turn) / (maximum - minimum)
 		self.raw_max = maximum * (turns * self.steps_per_turn) / (maximum - minimum)

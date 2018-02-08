@@ -28,6 +28,8 @@ from gi import require_version
 require_version('Gst', '1.0')
 from gi.repository import GObject, Gst
 
+WHEEL_STEPS = 100
+STEPS_PER_TURN = 96
 """
 from mplayer import Player
 
@@ -164,7 +166,7 @@ class Conductor(object):
 		self.state_station = 1
 		self.state_blanked = False
 
-		self.state_volume_change(12)
+		self.state_volume_change(WHEEL_STEPS / 2)
 
 	def attach_alarm_mgr(self, alarm_mgr):
 		self.alarm_mgr = alarm_mgr
@@ -207,12 +209,11 @@ class Conductor(object):
 
 
 	def state_volume_change(self, new_volume):
+		self.dt.display_number(new_volume)
 		if new_volume == self.state_volume:
 			return
 
-		self.state_volume = new_volume * 100 / 24
-		self.dt.display_number(self.state_volume)
-		#self.dt.display.set_brightness(new_volume)
+		self.state_volume = new_volume * 100 / WHEEL_STEPS
 
 		print("volume: %s" % self.state_volume)
 
@@ -229,7 +230,7 @@ class Conductor(object):
 		sleep(0.8)
 		print('\a')
 
-		self.state_volume_change(12)
+		self.state_volume_change(WHEEL_STEPS / 2)
 		self.state_station_change(station.url)
 		self.state_playing_change(False)
 		self.state_playing_change(True)
@@ -333,7 +334,7 @@ def main(argv):
 	watchdog.start()
 
 	ui.set_wheel_pressed_callback(conductor.state_playing_toggle)
-	ui.wheel.setup(0, 12, 24, 1, conductor.state_volume_change)
+	ui.wheel.setup(0, WHEEL_STEPS / 2, WHEEL_STEPS, (WHEEL_STEPS + 23) / 24, STEPS_PER_TURN, conductor.state_volume_change)
 
 	ui.set_top_pressed_callback(conductor.state_blanking_toggle)
 
