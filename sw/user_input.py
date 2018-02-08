@@ -36,6 +36,12 @@ class UI(object):
 	def set_top_pressed_callback(self, callback=None):
 		self.top_cb = callback
 
+	def set_middle_pressed_callback(self, callback=None):
+		self.middle_cb = callback
+
+	def set_bottom_pressed_callback(self, callback=None):
+		self.bottom_cb = callback
+
 	def wheel_pressed(self, gpio_id, val):
 		print("Wheel: %s" % val)
 		if val == 0:
@@ -56,12 +62,14 @@ class UI(object):
 			print "  ",
 			pin_bit = 1 << UI.CAPA_MID
 			if current_touched & pin_bit:
+					self.middle_cb()
 					print "M",
 			else:
 					print "-",
 			print "  ",
 			pin_bit = 1 << UI.CAPA_BOT
 			if current_touched & pin_bit:
+					self.bottom_cb()
 					print "B",
 			else:
 					print "-",
