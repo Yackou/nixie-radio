@@ -17,10 +17,10 @@ class UI(object):
 		RPIO.setup(UI.WHEEL_SW, RPIO.IN, pull_up_down=RPIO.PUD_UP)
 		RPIO.setup(UI.CAPA_IRQ, RPIO.IN, pull_up_down=RPIO.PUD_UP)
 
-		RPIO.add_interrupt_callback(UI.WHEEL_SW, self.wheel_pressed, threaded_callback=True, debounce_timeout_ms=40)
+		RPIO.add_interrupt_callback(UI.WHEEL_SW, self.wheel_pressed, threaded_callback=False, debounce_timeout_ms=40)
 		self.wheel = Wheel(UI.WHEEL_TA, UI.WHEEL_TB)
 
-		RPIO.wait_for_interrupts(threaded=True)
+		RPIO.wait_for_interrupts(threaded=True, epoll_timeout=10)
 		# Bug in RPIO? seems the pull UP has to be done twice...
 		RPIO.setup(UI.WHEEL_SW, RPIO.IN, pull_up_down=RPIO.PUD_UP)
 
@@ -28,7 +28,7 @@ class UI(object):
 		if not self.cap.begin():
 			print('Error initializing MPR121.  Check your wiring!')
 			sys.exit(1)
-		RPIO.add_interrupt_callback(UI.CAPA_IRQ, self.touch_pressed, threaded_callback=True)
+		RPIO.add_interrupt_callback(UI.CAPA_IRQ, self.touch_pressed, threaded_callback=False)
 
 	def set_wheel_pressed_callback(self, callback=None):
 		self.sw_cb = callback
@@ -79,8 +79,8 @@ class Wheel(object):
 		RPIO.setup(pin_a, RPIO.IN, pull_up_down=RPIO.PUD_UP)
 		RPIO.setup(pin_b, RPIO.IN, pull_up_down=RPIO.PUD_UP)
 
-		RPIO.add_interrupt_callback(pin_a, self.pin_a_changed, threaded_callback=True, debounce_timeout_ms=5)
-		RPIO.add_interrupt_callback(pin_b, self.pin_b_changed, threaded_callback=True, debounce_timeout_ms=5)
+		RPIO.add_interrupt_callback(pin_a, self.pin_a_changed, threaded_callback=False, debounce_timeout_ms=5)
+		RPIO.add_interrupt_callback(pin_b, self.pin_b_changed, threaded_callback=False, debounce_timeout_ms=5)
 
 		self.state_a = RPIO.input(pin_a)
 		self.state_b = RPIO.input(pin_b)
