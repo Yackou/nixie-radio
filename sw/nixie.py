@@ -117,7 +117,7 @@ class Tube:
 		self.start = offset
 		self.tube_length = Tube.TUBE_LENGTH
 		self.channel = channel
-
+		self.dual_pos = -1
 		# Digits
 		channel.set_on(self.start)
 
@@ -132,6 +132,7 @@ class Tube:
 		channel.set_off(self.start + 1 + self.tube_length)
 
 	def set_digit(self, digit = 0):
+		self.clear_dual()
 		self.channel.set_mask(digit_sets[digit], digit_mask, self.start)
 		self.channel.set_on(self.start)
 
@@ -154,6 +155,27 @@ class Tube:
 			self.channel.set_off(self.start + 1 + self.tube_length) #TODO implement set_none
 
 			self.tube_length = tube_length
+
+	def set_dual(self, i, j, percentage):
+		self.clear_dual()
+		self.set_digit(i)
+		self.dual_pos = self.start + (self.tube_length * min(max(percentage, 0), 100)) / 100
+
+		self.channel.set_mask(digit_mask, digit_mask, self.dual_pos)
+		self.channel.set_on(self.dual_pos)
+
+		self.channel.set_mask(~digit_sets[j], digit_mask, self.dual_pos + 1)
+		self.channel.set_off(self.dual_pos + 1)
+
+	def clear_dual(self):
+		if self.dual_pos != -1:
+			self.channel.set_mask(0, digit_mask, self.dual_pos)
+			self.channel.set_off(self.dual_pos)	#TODO implement set_none
+
+			self.channel.set_mask(0, digit_mask, self.dual_pos + 1)
+			self.channel.set_off(self.dual_pos + 1)	#TODO implement set_none
+
+			self.dual_pos = -1
 
 
 class Display:
@@ -209,6 +231,9 @@ class DisplayThread(threading.Thread):
 
 				if self.custom_tubes[0] == -1:
 					self.display.blank_tube(0)
+				elif self.custom_tubes[0] == 18:
+					self.display.unblank_tube(0)
+					self.display.tubes[0].set_dual(1, 8, 50)
 				else:
 					self.display.unblank_tube(0)
 					self.display.set_tube(0, self.custom_tubes[0])
@@ -272,14 +297,19 @@ class DisplayThread(threading.Thread):
 
 
 	def display_number(self, number = 0):
-		if number >= 1000:
+		if number >= 10000:
+			self.custom_tubes[0] = 18
+			number -= 10000
+		elif number >= 1000:
 			self.custom_tubes[0] = number / 1000
 		else:
 			self.custom_tubes[0] = -1
+
 		if number >= 100:
 			self.custom_tubes[1] = (number % 1000) / 100
 		else:
 			self.custom_tubes[1] = -1
+
 		if number >= 10:
 			self.custom_tubes[2] = (number % 100) / 10
 		else:
