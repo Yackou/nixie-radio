@@ -60,7 +60,7 @@ class CliThread(threading.Thread):
 	"""
 	def __init__(self):
 		self.cli_instance = None
-		threading.Thread.__init__(self)
+		threading.Thread.__init__(self, name = "cli")
 		self.daemon = True
 
 	def attach_alarm_mgr(self, alarm_mgr):
@@ -102,7 +102,7 @@ class GstPlayer(object):
 
 class Watchdog(threading.Thread):
 	def __init__(self, online, offline):
-		threading.Thread.__init__(self)
+		threading.Thread.__init__(self, name = "watchdog")
 		self.daemon = True
 		self.current_status = 1
 		self.offline = offline
@@ -139,29 +139,58 @@ class StateWheel:
 class StateWheelSwitch:
 	PLAY = 0
 
-class Conductor(object):
-	def __init__(self):
+class RadioState:
+	DEFAULT = 0
+	VOLUME = 1
+	BRIGHTNESS = 2
+	NEXT = 3
+	STATION = 4
+	ALARM = 5
+	SNOOZE = 6
+	SLEEP = 7
+
+class RadioEvent:
+	TIMEOUT = 0
+	T = 1
+	M = 2
+	B = 3
+	WHEEL_MOVE = 4
+	WHEEL_PRESSED = 5
+	ALARM = 6
+	TMB = 7
+
+class Conductor(threading.Thread):
+	def __init__(self, wheel_setup_cb):
+		threading.Thread.__init__(self, name = "conductor")
+		self.daemon = True
+
 		GObject.threads_init()
 		Gst.init(None)
+
+		self.threading_event = threading.Event()
 
 		self.player = GstPlayer()
 		self.dt = DisplayThread()
 		self.dt.start()
 
+		self.wheel_setup_cb = wheel_setup_cb
+
 		self.alarm_mgr = None
 
 		self.offline_station = 'file:///home/yannick/Music/01 - Il Y A.mp3'
 		self.stations = []
-		self.stations.append('file:///home/yannick/Music/01 - Il Y A.mp3')
-		self.stations.append('http://tsfjazz.ice.infomaniak.ch/tsfjazz-high.mp3')
-		self.stations.append('http://direct.fipradio.fr/live/fip-midfi.mp3')
-		self.stations.append('http://rivieraradio.ice.infomaniak.ch:80/rivieraradio-high')
-		self.current_station = self.offline_station
+		#self.stations.append('file:///home/yannick/Music/01 - Il Y A.mp3')
+		#self.stations.append('http://tsfjazz.ice.infomaniak.ch/tsfjazz-high.mp3')
+		#self.stations.append('http://direct.fipradio.fr/live/fip-midfi.mp3')
+		#self.stations.append('http://rivieraradio.ice.infomaniak.ch:80/rivieraradio-high')
+		self.current_station = None
 
 		self.state_offline = False
 		self.state_playing = False
 		self.state_wheel_switch = StateWheelSwitch.PLAY
 		self.state_wheel = StateWheel.VOLUME
+		self.wheel_value = 50
+		self.state_brightness = 50
 		self.state_volume = 0
 		self.state_station = 1
 		self.state_blanked = False
@@ -170,13 +199,20 @@ class Conductor(object):
 
 	def attach_alarm_mgr(self, alarm_mgr):
 		self.alarm_mgr = alarm_mgr
-		stations = self.alarm_mgr.get_all_stations()
-		if len(stations) > 0:
-			self.current_station = self.alarm_mgr.get_all_stations()[0].url
+		self.stations = self.alarm_mgr.get_all_stations()
+		if len(self.stations) > 0:
+			self.current_station = self.stations[0]
 
 
 	def state_station_change(self, new_station):
+		self.dt.display_number(10000 + new_station.id_)
+		if new_station == self.current_station:
+			return
+
 		self.current_station = new_station
+		if self.state_playing == True:
+			self.state_playing_change(False)
+			self.state_playing_change(True)
 
 	def state_playing_change(self, new_state):
 		if new_state == self.state_playing:
@@ -186,9 +222,8 @@ class Conductor(object):
 			if self.state_offline:
 				self.player.play(self.offline_station, self.state_volume)
 			else:
-				self.player.play(self.current_station, self.state_volume)
+				self.player.play(self.current_station.url, self.state_volume)
 			self.player.set_volume(self.state_volume)
-			self.dt.display_number(self.state_volume)
 			print('Playing music')
 		else:
 			self.player.stop()
@@ -220,6 +255,16 @@ class Conductor(object):
 		if self.state_playing:
 			self.player.set_volume(self.state_volume)
 
+	def state_brightness_change(self, new_brightness):
+		self.dt.display_number(new_brightness)
+		if new_brightness == self.state_brightness:
+			return
+
+		self.state_brightness = new_brightness * 100 / WHEEL_STEPS
+		self.dt.display.set_brightness(self.state_brightness)
+
+		print("brightness: %s" % self.state_brightness)
+
 
 	def alert(self, alarm_item):
 		station = self.alarm_mgr.get_station(alarm_item.station_id)
@@ -231,8 +276,7 @@ class Conductor(object):
 		print('\a')
 
 		self.state_volume_change(WHEEL_STEPS / 2)
-		self.state_station_change(station.url)
-		self.state_playing_change(False)
+		self.state_station_change(station)
 		self.state_playing_change(True)
 
 
@@ -258,6 +302,154 @@ class Conductor(object):
 		if self.state_playing:
 			self.state_playing_change(False)
 			self.state_playing_change(True)
+
+	def event_T(self):
+		self.event = RadioEvent.T
+		self.threading_event.set()
+
+	def event_M(self):
+		self.event = RadioEvent.M
+		self.threading_event.set()
+
+	def event_B(self):
+		self.event = RadioEvent.B
+		self.threading_event.set()
+
+	def event_WHEEL_PRESSED(self):
+		self.event = RadioEvent.WHEEL_PRESSED
+		self.threading_event.set()
+
+	def event_WHEEL_MOVE(self, new_val):
+		self.wheel_value = new_val
+		self.event = RadioEvent.WHEEL_MOVE
+		self.threading_event.set()
+
+	def to_state_DEFAULT(self):
+		self.wheel_setup_cb(0, self.state_volume, WHEEL_STEPS, (WHEEL_STEPS + 23) / 24, STEPS_PER_TURN, self.event_WHEEL_MOVE)
+		if self.state_blanked:
+			self.dt.blank()
+		self.state = RadioState.DEFAULT
+		self.timeout = None
+
+	def to_state_BRIGHTNESS(self):
+		self.wheel_setup_cb(0, self.state_brightness, WHEEL_STEPS, (WHEEL_STEPS + 23) / 24, STEPS_PER_TURN, self.event_WHEEL_MOVE)
+		self.state_brightness_change(self.state_brightness)
+		self.state = RadioState.BRIGHTNESS
+		self.timeout = 3
+
+	def to_state_NEXT(self):
+		alarm_item = self.alarm_mgr.get_next_alarm()
+		self.dt.display_number(alarm_item.hour*100 + alarm_item.minute)
+		self.state = RadioState.NEXT
+		self.timeout = 3
+
+	def to_state_STATION(self):
+		self.wheel_setup_cb(0, [s.id_ for s in self.stations].index(self.current_station.id_), len(self.stations) - 1, (len(self.stations) - 1 + 23) / 24, 8*(len(self.stations) - 1), self.event_WHEEL_MOVE)
+		self.state_station_change(self.current_station)
+		self.state = RadioState.STATION
+		self.timeout = 3
+
+	def run(self):
+		event_raised = False
+		self.event = RadioEvent.TIMEOUT
+		self.to_state_DEFAULT()
+
+		while True:
+			event_raised = self.threading_event.wait(self.timeout)
+			if not event_raised:
+				self.event = RadioEvent.TIMEOUT
+
+			print("State: %s  Event: %s timeout %s" % (self.state, self.event, self.timeout))
+			if self.state == RadioState.DEFAULT:
+				if self.event == RadioEvent.T:
+					self.to_state_BRIGHTNESS()
+
+				elif self.event == RadioEvent.M:
+					self.to_state_NEXT()
+
+				elif self.event == RadioEvent.B:
+					self.to_state_STATION()
+
+				elif self.event == RadioEvent.WHEEL_MOVE:
+					self.state_volume_change(self.wheel_value)
+					self.state = RadioState.VOLUME
+					self.timeout = 3
+
+				elif self.event == RadioEvent.WHEEL_PRESSED:
+					self.state_playing_toggle()
+
+
+			elif self.state == RadioState.VOLUME:
+				if self.event == RadioEvent.TIMEOUT:
+					self.to_state_DEFAULT()
+
+				elif self.event == RadioEvent.T:
+					self.to_state_BRIGHTNESS()
+
+				elif self.event == RadioEvent.M:
+					self.to_state_NEXT()
+
+				elif self.event == RadioEvent.B:
+					self.to_state_STATION()
+
+				elif self.event == RadioEvent.WHEEL_MOVE:
+					self.state_volume_change(self.wheel_value)
+
+				elif self.event == RadioEvent.WHEEL_PRESSED:
+					self.state_playing_toggle()
+
+
+			elif self.state == RadioState.BRIGHTNESS:
+				if self.event == RadioEvent.TIMEOUT:
+					self.to_state_DEFAULT()
+
+				elif self.event == RadioEvent.T:
+					self.state_blanking_toggle()
+					self.to_state_DEFAULT()
+
+				elif self.event == RadioEvent.M:
+					self.to_state_NEXT()
+
+				elif self.event == RadioEvent.B:
+					self.to_state_STATION()
+
+				elif self.event == RadioEvent.WHEEL_MOVE:
+					self.state_brightness_change(self.wheel_value)
+
+				elif self.event == RadioEvent.WHEEL_PRESSED:
+					self.state_playing_toggle()
+
+
+			elif self.state == RadioState.NEXT:
+				if self.event == RadioEvent.TIMEOUT:
+					self.to_state_DEFAULT()
+
+				elif self.event == RadioEvent.T:
+					self.to_state_BRIGHTNESS()
+
+				elif self.event == RadioEvent.B:
+					self.to_state_STATION()
+
+
+			elif self.state == RadioState.STATION:
+				if self.event == RadioEvent.TIMEOUT:
+					self.to_state_DEFAULT()
+
+				elif self.event == RadioEvent.T:
+					self.to_state_BRIGHTNESS()
+
+				elif self.event == RadioEvent.M:
+					self.to_state_NEXT()
+
+				elif self.event == RadioEvent.WHEEL_MOVE:
+					self.state_station_change(self.stations[self.wheel_value])
+
+				elif self.event == RadioEvent.WHEEL_PRESSED:
+					self.state_playing_toggle()
+
+
+			print("New state: %s  Timeout: %s" % (self.state, self.timeout))
+			self.threading_event.clear()
 
 def parsing_args(argv):
 	"""
@@ -328,15 +520,18 @@ def main(argv):
 	# Loading the settings
 	print('\n=========== Launching Nixie Alarm Clock ==========')
 
-	conductor = Conductor()
 	ui = UI()
-	watchdog = Watchdog(conductor.online, conductor.offline)
-	watchdog.start()
 
-	ui.set_wheel_pressed_callback(conductor.state_playing_toggle)
+	conductor = Conductor(ui.wheel.setup)
+
+	watchdog = Watchdog(conductor.online, conductor.offline)
+
+	ui.set_wheel_pressed_callback(conductor.event_WHEEL_PRESSED)
 	ui.wheel.setup(0, WHEEL_STEPS / 2, WHEEL_STEPS, (WHEEL_STEPS + 23) / 24, STEPS_PER_TURN, conductor.state_volume_change)
 
-	ui.set_top_pressed_callback(conductor.state_blanking_toggle)
+	ui.set_top_pressed_callback(conductor.event_T)
+	ui.set_middle_pressed_callback(conductor.event_M)
+	ui.set_bottom_pressed_callback(conductor.event_B)
 
 	if start == 'server':
 		# For the server we only set the offset alarm, as it is meant to be run
@@ -353,6 +548,8 @@ def main(argv):
 			offset_alert_callback=None)
 		conductor.attach_alarm_mgr(alarm_mgr)
 		cli_thread.attach_alarm_mgr(alarm_mgr)
+		conductor.start()
+		watchdog.start()
 		cli_thread.start()
 
 		# Infinite loop can be the Flask server, or just a loop

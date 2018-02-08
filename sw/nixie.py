@@ -203,7 +203,7 @@ class Display:
 
 class DisplayThread(threading.Thread):
 	def __init__(self):
-		threading.Thread.__init__(self)
+		threading.Thread.__init__(self, name = "nixie")
 		self.daemon = True
 
 		PWM.setup(pulse_incr_us=10)
@@ -319,6 +319,9 @@ class DisplayThread(threading.Thread):
 
 		self.custom = True
 		self.custom_event.set()
+
+	def display_brightness(self, brightness):
+		self.display_number(brightness)
 
 	def blank(self):
 		self.blanked = True
