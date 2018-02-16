@@ -290,7 +290,6 @@ class DisplayThread(threading.Thread):
 			timeout = None
 			if self.custom:
 				print("custom")
-				timeout = 3
 				previous_time = localtime(0)
 
 				if self.custom_tubes[0] == -1:
@@ -398,6 +397,10 @@ class DisplayThread(threading.Thread):
 
 		self.custom_event.set()
 
+	def show_time(self):
+		self.custom = False
+
+		self.custom_event.set()
 
 if __name__ == "__main__":
 	try:

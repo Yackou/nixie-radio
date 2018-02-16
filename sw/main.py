@@ -330,6 +330,7 @@ class Conductor(threading.Thread):
 		if self.state_blanked:
 			self.dt.blank()
 		self.dt.dots.steady(0, 1, 1)
+		self.dt.show_time()
 		self.state = RadioState.DEFAULT
 		self.timeout = None
 
@@ -345,7 +346,7 @@ class Conductor(threading.Thread):
 		self.dt.display_number(alarm_item.hour*100 + alarm_item.minute)
 		self.dt.dots.altern()
 		self.state = RadioState.NEXT
-		self.timeout = 3
+		self.timeout = 4
 
 	def to_state_STATION(self):
 		self.wheel_setup_cb(0, [s.id_ for s in self.stations].index(self.current_station.id_), len(self.stations) - 1, (len(self.stations) - 1 + 23) / 24, 8*(len(self.stations) - 1), self.event_WHEEL_MOVE)
