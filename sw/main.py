@@ -262,6 +262,7 @@ class Conductor(threading.Thread):
 
 		self.state_brightness = new_brightness * 100 / WHEEL_STEPS
 		self.dt.display.set_brightness(self.state_brightness)
+		self.dt.dots.set_brightness(self.state_brightness)
 
 		print("brightness: %s" % self.state_brightness)
 
@@ -328,24 +329,28 @@ class Conductor(threading.Thread):
 		self.wheel_setup_cb(0, self.state_volume, WHEEL_STEPS, (WHEEL_STEPS + 23) / 24, STEPS_PER_TURN, self.event_WHEEL_MOVE)
 		if self.state_blanked:
 			self.dt.blank()
+		self.dt.dots.steady(0, 1, 1)
 		self.state = RadioState.DEFAULT
 		self.timeout = None
 
 	def to_state_BRIGHTNESS(self):
 		self.wheel_setup_cb(0, self.state_brightness, WHEEL_STEPS, (WHEEL_STEPS + 23) / 24, STEPS_PER_TURN, self.event_WHEEL_MOVE)
 		self.state_brightness_change(self.state_brightness)
+		self.dt.dots.steady(1, 1, 1)
 		self.state = RadioState.BRIGHTNESS
 		self.timeout = 3
 
 	def to_state_NEXT(self):
 		alarm_item = self.alarm_mgr.get_next_alarm()
 		self.dt.display_number(alarm_item.hour*100 + alarm_item.minute)
+		self.dt.dots.altern()
 		self.state = RadioState.NEXT
 		self.timeout = 3
 
 	def to_state_STATION(self):
 		self.wheel_setup_cb(0, [s.id_ for s in self.stations].index(self.current_station.id_), len(self.stations) - 1, (len(self.stations) - 1 + 23) / 24, 8*(len(self.stations) - 1), self.event_WHEEL_MOVE)
 		self.state_station_change(self.current_station)
+		self.dt.dots.steady(0, 1, 1)
 		self.state = RadioState.STATION
 		self.timeout = 3
 

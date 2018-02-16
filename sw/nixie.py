@@ -50,6 +50,7 @@ digit_mask = (1 << digit_gpios[0]) | (1 << digit_gpios[1]) | (1 << digit_gpios[2
 tube_sets = map(lambda (a,b,c): (a << tube_gpios[0]) | (b << tube_gpios[1]) | (c << tube_gpios[2]), tubes)
 tube_mask = (1 << tube_gpios[0]) | (1 << tube_gpios[1]) | (1 << tube_gpios[2])
 
+dots_mask = (1 << dot_top) | ( 1 << dot_bot)
 
 class DMAChannel:
 	def __init__(self, channel = 0, period = 10000, gpios = ()):
@@ -95,19 +96,82 @@ class DMAChannel:
 			PWM.clear_channel_gpio(self.channel, gpio)
 
 
+# Put set_on at regular intervals (100 Hz) at init time (never moved)
+# Put set_off based on brightness, assign both dots on every set_off
+# Assign dots to set_on based on requested sequence
+
 class Dots:
 	PERIOD = 1000000
-	DOT_LENGTH = 49000
+	DOT_LENGTH = 999
 	STRIDE = 0
 	def __init__(self):
 		self.dot_length = Dots.DOT_LENGTH
 		self.channel = DMAChannel(channel = dots_channel, period = Dots.PERIOD, gpios = (dot_top, dot_bot))
 
-		self.channel.apply([((1, 0), 1, self.dot_length),
-							((0, 1), 1 + Dots.STRIDE, self.dot_length)])
+		i = 0
+		while i < Dots.PERIOD / 10:
+			mod = i % 1000
+			if mod == 0:
+				self.channel.assign((dot_top, dot_bot), i)
+				self.channel.set_on(i)
+			if mod == self.dot_length:
+				self.channel.assign((dot_top, dot_bot), i)
+				self.channel.set_off(i)
+			i += 1
 
 	def reset(self):
 		self.channel.reset()
+
+	def set_brightness(self, percentage):
+		dot_length = (min(max(percentage, 0), 100) * Dots.DOT_LENGTH) / 100
+		dot_length = max(dot_length, 1)
+
+		if dot_length != self.dot_length:
+			old_pos = self.dot_length
+			new_pos = dot_length
+			while old_pos < Dots.PERIOD / 10:
+				self.channel.set_mask(dots_mask, dots_mask, new_pos)
+				self.channel.set_off(new_pos)
+
+				self.channel.set_mask(0, dots_mask, old_pos)
+				self.channel.set_off(old_pos) #TODO implement set_none
+
+				old_pos += 1000
+				new_pos += 1000
+
+			self.dot_length = dot_length
+
+	def steady(self, val, top, bot):
+		mask =  (top << dot_top) | (bot << dot_bot)
+		value =  ((val & top) << dot_top) | ((val & bot) << dot_bot)
+
+		pos = 0
+		while pos < Dots.PERIOD / 10:
+			self.channel.set_mask(value, mask, pos)
+			pos += 1000
+
+	def altern(self):
+		pos = 0
+
+		value = (1 << dot_top)
+		while pos < Dots.PERIOD / 40:
+			self.channel.set_mask(value, dots_mask, pos)
+			pos += 1000
+
+		value = (1 << dot_bot)
+		while pos < Dots.PERIOD / 20:
+			self.channel.set_mask(value, dots_mask, pos)
+			pos += 1000
+
+		value = (1 << dot_top)
+		while pos < 3 * Dots.PERIOD / 40:
+			self.channel.set_mask(value, dots_mask, pos)
+			pos += 1000
+
+		value = (1 << dot_bot)
+		while pos < Dots.PERIOD / 10:
+			self.channel.set_mask(value, dots_mask, pos)
+			pos += 1000
 
 
 class Tube:
@@ -259,7 +323,6 @@ class DisplayThread(threading.Thread):
 			elif self.blanked:
 				print("blanked")
 				previous_time = localtime(0)
-				self.dots.reset()
 
 				self.display.blank_tube(0)
 				self.display.blank_tube(1)
