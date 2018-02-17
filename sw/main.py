@@ -189,11 +189,14 @@ class Conductor(threading.Thread):
 		self.state_playing = False
 		self.state_wheel_switch = StateWheelSwitch.PLAY
 		self.state_wheel = StateWheel.VOLUME
-		self.wheel_value = 50
 		self.state_brightness = 50
 		self.state_volume = 0
 		self.state_station = 1
 		self.state_blanked = False
+
+		self.wheel_value = 50
+		self.alarm_value = None
+
 
 		self.state_volume_change(WHEEL_STEPS / 2)
 
@@ -267,20 +270,6 @@ class Conductor(threading.Thread):
 		print("brightness: %s" % self.state_brightness)
 
 
-	def alert(self, alarm_item):
-		station = self.alarm_mgr.get_station(alarm_item.station_id)
-		# '\a' is a request to the terminal to beep
-		print('\n\nRING RING RING ' + station.name + ' !!!!\a')
-		sleep(0.8)
-		print('\a')
-		sleep(0.8)
-		print('\a')
-
-		self.state_volume_change(WHEEL_STEPS / 2)
-		self.state_station_change(station)
-		self.state_playing_change(True)
-
-
 	def wheel_turned(self, val):
 		if self.state_wheel == StateWheel.VOLUME:
 			self.state_volume_change(val)
@@ -325,6 +314,16 @@ class Conductor(threading.Thread):
 		self.event = RadioEvent.WHEEL_MOVE
 		self.threading_event.set()
 
+	def event_ALARM(self, alarm_item):
+		self.alarm_value = alarm_item
+		self.event = RadioEvent.ALARM
+		self.threading_event.set()
+
+	def event_TMB(self):
+		self.event = RadioEvent.TMB
+		self.threading_event.set()
+
+
 	def to_state_DEFAULT(self):
 		self.wheel_setup_cb(0, self.state_volume, WHEEL_STEPS, (WHEEL_STEPS + 23) / 24, STEPS_PER_TURN, self.event_WHEEL_MOVE)
 		if self.state_blanked:
@@ -355,6 +354,31 @@ class Conductor(threading.Thread):
 		self.state = RadioState.STATION
 		self.timeout = 3
 
+	def to_state_ALARM(self):
+		station = self.alarm_mgr.get_station(self.alarm_value.station_id)
+		# '\a' is a request to the terminal to beep
+		print('\n\nRING RING RING ' + station.name + ' !!!!\a')
+
+		self.state_volume_change(WHEEL_STEPS / 2)
+		self.state_station_change(station)
+		self.state_playing_change(True)
+
+		self.dt.show_time()
+		self.dt.display.set_brightness(100)
+		self.dt.dots.set_brightness(100)
+		self.dt.dots.altern()
+		if self.state_blanked:
+			self.dt.unblank()
+
+		self.state = RadioState.ALARM
+		self.timeout = 1800
+
+	def from_state_ALARM(self):
+		self.state_playing_change(False)
+
+		self.dt.display.set_brightness(self.state_brightness)
+		self.dt.dots.set_brightness(self.state_brightness)
+
 	def run(self):
 		event_raised = False
 		self.event = RadioEvent.TIMEOUT
@@ -384,6 +408,8 @@ class Conductor(threading.Thread):
 				elif self.event == RadioEvent.WHEEL_PRESSED:
 					self.state_playing_toggle()
 
+				elif self.event == RadioEvent.ALARM:
+					self.to_state_ALARM()
 
 			elif self.state == RadioState.VOLUME:
 				if self.event == RadioEvent.TIMEOUT:
@@ -403,6 +429,9 @@ class Conductor(threading.Thread):
 
 				elif self.event == RadioEvent.WHEEL_PRESSED:
 					self.state_playing_toggle()
+
+				elif self.event == RadioEvent.ALARM:
+					self.to_state_ALARM()
 
 
 			elif self.state == RadioState.BRIGHTNESS:
@@ -425,6 +454,9 @@ class Conductor(threading.Thread):
 				elif self.event == RadioEvent.WHEEL_PRESSED:
 					self.state_playing_toggle()
 
+				elif self.event == RadioEvent.ALARM:
+					self.to_state_ALARM()
+
 
 			elif self.state == RadioState.NEXT:
 				if self.event == RadioEvent.TIMEOUT:
@@ -435,6 +467,9 @@ class Conductor(threading.Thread):
 
 				elif self.event == RadioEvent.B:
 					self.to_state_STATION()
+
+				elif self.event == RadioEvent.ALARM:
+					self.to_state_ALARM()
 
 
 			elif self.state == RadioState.STATION:
@@ -452,6 +487,19 @@ class Conductor(threading.Thread):
 
 				elif self.event == RadioEvent.WHEEL_PRESSED:
 					self.state_playing_toggle()
+
+				elif self.event == RadioEvent.ALARM:
+					self.to_state_ALARM()
+
+
+			elif self.state == RadioState.ALARM:
+				if self.event == RadioEvent.TIMEOUT:
+					self.from_state_ALARM()
+					self.to_state_DEFAULT()
+
+				elif self.event == RadioEvent.TMB:
+					self.from_state_ALARM()
+					self.to_state_DEFAULT()
 
 
 			print("New state: %s  Timeout: %s" % (self.state, self.timeout))
@@ -535,6 +583,7 @@ def main(argv):
 	ui.set_wheel_pressed_callback(conductor.event_WHEEL_PRESSED)
 	ui.wheel.setup(0, WHEEL_STEPS / 2, WHEEL_STEPS, (WHEEL_STEPS + 23) / 24, STEPS_PER_TURN, conductor.state_volume_change)
 
+	ui.set_tmb_pressed_callback(conductor.event_TMB)
 	ui.set_top_pressed_callback(conductor.event_T)
 	ui.set_middle_pressed_callback(conductor.event_M)
 	ui.set_bottom_pressed_callback(conductor.event_B)
@@ -550,7 +599,7 @@ def main(argv):
 		# the 'cli' and 'both' options.
 		cli_thread = CliThread()
 		alarm_mgr = AlarmManager.AlarmManager(
-			alert_callback=conductor.alert,
+			alert_callback=conductor.event_ALARM,
 			offset_alert_callback=None)
 		conductor.attach_alarm_mgr(alarm_mgr)
 		cli_thread.attach_alarm_mgr(alarm_mgr)
